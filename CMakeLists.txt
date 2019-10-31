@@ -3,6 +3,6 @@ project(binrpc)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(binrpc main.cpp)
+add_executable(binrpc src/main.cpp)
 
 target_link_libraries(binrpc homegear-base gnutls gcrypt pthread)
