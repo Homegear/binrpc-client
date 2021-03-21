@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
     std::array<char, 4096> buffer{};
     while (true) {
       auto bytesReceived = socket->proofread(buffer.data(), buffer.size());
-      if (bytesReceived > buffer.size()) bytesReceived = buffer.size(); //Can't happen, but mandatory check for rpc.process
+      if (bytesReceived > (signed)buffer.size()) bytesReceived = buffer.size(); //Can't happen, but mandatory check for rpc.process
 
       bool breakLoop = false;
       int32_t bytesProcessed = 0;
