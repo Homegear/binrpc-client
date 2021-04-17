@@ -1,15 +1,21 @@
 #include <homegear-base/BaseLib.h>
 #include <iostream>
+#include <getopt.h>
 
 void printHelp() {
   std::cout << "Usage: binrpc [OPTIONS] -m [METHOD] -p [PARAMETERS]" << std::endl << std::endl;
   std::cout << "OPTIONS:" << std::endl;
-  std::cout << "  Option              Meaning" << std::endl;
-  std::cout << "  -h                  Show this help" << std::endl;
-  std::cout << "  -H <hostname>       Hostname/IP address to connect to" << std::endl;
-  std::cout << "  -P <port>           Port to connect to" << std::endl;
-  std::cout << "  -t <timeout>        Read timeout in milliseconds" << std::endl;
-  std::cout << "  -v                  Print program version" << std::endl;
+  std::cout << "  Option                    Long option     Meaning" << std::endl;
+  std::cout << "  -h                        --help          Show this help" << std::endl;
+  std::cout << "  -H <hostname>                             Hostname/IP address to connect to" << std::endl;
+  std::cout << "  -P <port>                                 Port to connect to" << std::endl;
+  std::cout << "  -t <timeout>                              Read timeout in milliseconds" << std::endl;
+  std::cout << "  -e                        --tls           Encrypt communication" << std::endl;
+  std::cout << "  -a <CA certificate file>  --ca            Path to PEM encoded CA certificate the server's certificate was signed with." << std::endl;
+  std::cout << "                                            When not specified, the system's CA store is used." << std::endl;
+  std::cout << "  -c <Certificate file>     --cert          Path to PEM encoded public certificate to login into the server" << std::endl;
+  std::cout << "  -k <Private key file>     --key           Path to PEM encoded private certificate to login into the server" << std::endl;
+  std::cout << "  -v                        --version       Print program version" << std::endl;
   std::cout << std::endl;
   std::cout << "METHOD: The RPC method name" << std::endl;
   std::cout << "PARAMETERS: The RPC parameters as JSON array. E. g. '[\"string\", 5.2, true]'" << std::endl;
@@ -26,9 +32,23 @@ int main(int argc, char *argv[]) {
     std::string method;
     std::string parametersString;
     int64_t timeout = -1;
+    bool tls = false;
+    std::string ca;
+    std::string cert;
+    std::string key;
+
+    option longOptions[] = {
+        {"help", 0, nullptr, 'h'},
+        {"tls", 0, nullptr, 'e'},
+        {"ca", 1, nullptr, 'a'},
+        {"cert", 1, nullptr, 'c'},
+        {"key", 1, nullptr, 'k'},
+        {"version", 0, nullptr, 'v'},
+        nullptr
+    };
 
     int option = -1;
-    while ((option = getopt(argc, argv, ":hH:P:m:p:t:")) != -1) {
+    while ((option = getopt_long(argc, argv, ":hH:P:m:p:t:ea:c:k:", longOptions, nullptr)) != -1) {
       switch (option) {
         case 'h': {
           printHelp();
@@ -52,6 +72,23 @@ int main(int argc, char *argv[]) {
         }
         case 't': {
           timeout = BaseLib::Math::getUnsignedNumber(std::string(optarg));
+          break;
+        }
+        case 'e': {
+          tls = true;
+          break;
+        }
+        case 'a': {
+          ca = std::string(optarg);
+          break;
+        }
+        case 'c': {
+          cert = std::string(optarg);
+          break;
+        }
+        case 'k': {
+          key = std::string(optarg);
+          break;
         }
         case '?': {
           std::cerr << "Unknown option: " << (char)optopt << std::endl;
@@ -83,7 +120,14 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    auto socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port));
+    std::shared_ptr<BaseLib::TcpSocket> socket;
+    if (!tls) {
+      socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port));
+    } else if (cert.empty() || key.empty()) {
+      socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port), true, ca, true);
+    } else {
+      socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port), true, ca, true, cert, key);
+    }
     if (timeout > 0) socket->setReadTimeout(timeout * 1000);
     socket->open();
 
