@@ -15,6 +15,7 @@ void printHelp() {
   std::cout << "                                            When not specified, the system's CA store is used." << std::endl;
   std::cout << "  -c <Certificate file>     --cert          Path to PEM encoded public certificate to login into the server" << std::endl;
   std::cout << "  -k <Private key file>     --key           Path to PEM encoded private certificate to login into the server" << std::endl;
+  std::cout << "  -d <RPC hex>              --decode        Decode RPC hex" << std::endl;
   std::cout << "  -v                        --version       Print program version" << std::endl;
   std::cout << std::endl;
   std::cout << "METHOD: The RPC method name" << std::endl;
@@ -37,6 +38,8 @@ int main(int argc, char *argv[]) {
     std::string cert;
     std::string key;
 
+    std::string decode;
+
     option longOptions[] = {
         {"help", 0, nullptr, 'h'},
         {"tls", 0, nullptr, 'e'},
@@ -44,11 +47,12 @@ int main(int argc, char *argv[]) {
         {"cert", 1, nullptr, 'c'},
         {"key", 1, nullptr, 'k'},
         {"version", 0, nullptr, 'v'},
+        {"decode", 1, nullptr, 'd'},
         nullptr
     };
 
     int option = -1;
-    while ((option = getopt_long(argc, argv, ":hH:P:m:p:t:ea:c:k:", longOptions, nullptr)) != -1) {
+    while ((option = getopt_long(argc, argv, ":hH:P:m:p:t:ea:c:k:d:", longOptions, nullptr)) != -1) {
       switch (option) {
         case 'h': {
           printHelp();
@@ -73,6 +77,9 @@ int main(int argc, char *argv[]) {
         case 't': {
           timeout = BaseLib::Math::getUnsignedNumber(std::string(optarg));
           break;
+        }
+        case 'd': {
+          decode = std::string(optarg);
         }
         case 'e': {
           tls = true;
@@ -100,6 +107,21 @@ int main(int argc, char *argv[]) {
           exit(1);
         }
       }
+    }
+
+    if (!decode.empty()) {
+      BaseLib::Rpc::RpcDecoder decoder;
+      if (decode.compare(0, 8, "42696E00") == 0) { //request
+        std::string methodName;
+        auto parameters = decoder.decodeRequest(BaseLib::HelperFunctions::getUBinary(decode), methodName);
+        auto request = std::make_shared<BaseLib::Variable>(BaseLib::VariableType::tStruct);
+        request->structValue->emplace("method", std::make_shared<BaseLib::Variable>(methodName));
+        request->structValue->emplace("params", std::make_shared<BaseLib::Variable>(parameters));
+        std::cout << BaseLib::Rpc::JsonEncoder::encode(request) << std::endl;
+      } else {
+        std::cout << BaseLib::Rpc::JsonEncoder::encode(decoder.decodeResponse(BaseLib::HelperFunctions::getUBinary(decode))) << std::endl;
+      }
+      exit(0);
     }
 
     if (port == 0) {
