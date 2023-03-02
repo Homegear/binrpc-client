@@ -5,7 +5,7 @@ AM_LDFLAGS = -Wl,-rpath=/lib/homegear -Wl,-rpath=/usr/lib/homegear -Wl,-rpath=/u
 
 bin_PROGRAMS = binrpc
 binrpc_SOURCES = main.cpp
-binrpc_LDADD = -lpthread -lhomegear-base -lgcrypt -lgnutls
+binrpc_LDADD = -lpthread -lhomegear-base -lc1-net -lz -lgcrypt -lgnutls
 
 if BSDSYSTEM
 else
