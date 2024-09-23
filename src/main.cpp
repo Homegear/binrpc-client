@@ -142,34 +142,39 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    std::shared_ptr<BaseLib::TcpSocket> socket;
-    if (!tls) {
-      socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port));
-    } else if (cert.empty() || key.empty()) {
-      socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port), true, ca, true);
-    } else {
-      socket = std::make_shared<BaseLib::TcpSocket>(bl.get(), hostname, std::to_string(port), true, ca, true, cert, key);
-    }
-    if (timeout > 0) socket->setReadTimeout(timeout * 1000);
-    socket->open();
+    C1Net::TcpSocketInfo tcp_socket_info;
+    tcp_socket_info.read_timeout = timeout;
+    tcp_socket_info.write_timeout = timeout;
+
+    C1Net::TcpSocketHostInfo tcp_socket_host_info;
+    tcp_socket_host_info.host = hostname;
+    tcp_socket_host_info.port = port;
+    tcp_socket_host_info.tls = tls;
+    tcp_socket_host_info.ca_file = ca;
+    tcp_socket_host_info.client_cert_file = cert;
+    tcp_socket_host_info.client_key_file = key;
+
+    auto socket = std::make_shared<C1Net::TcpSocket>(tcp_socket_info, tcp_socket_host_info);
+    socket->Open();
 
     BaseLib::Rpc::RpcEncoder rpcEncoder(bl.get(), false, true);
     BaseLib::Rpc::RpcDecoder rpcDecoder(bl.get(), false, false);
-    std::vector<char> packet;
+    std::vector<uint8_t> packet;
     rpcEncoder.encodeRequest(method, parameters->arrayValue, packet);
-    socket->proofwrite(packet);
+    socket->Send(packet);
 
     BaseLib::Rpc::BinaryRpc rpc(bl.get());
 
-    std::array<char, 4096> buffer{};
+    std::array<uint8_t, 4096> buffer{};
+    bool more_data = false;
     while (true) {
-      auto bytesReceived = socket->proofread(buffer.data(), buffer.size());
+      auto bytesReceived = socket->Read(buffer.data(), buffer.size(), more_data);
       if (bytesReceived > (signed)buffer.size()) bytesReceived = buffer.size(); //Can't happen, but mandatory check for rpc.process
 
       bool breakLoop = false;
       int32_t bytesProcessed = 0;
       while (bytesProcessed < bytesReceived) {
-        bytesProcessed += rpc.process(buffer.data() + bytesProcessed, bytesReceived - bytesProcessed);
+        bytesProcessed += rpc.process((char *)buffer.data() + bytesProcessed, bytesReceived - bytesProcessed);
         if (rpc.isFinished()) {
           if (rpc.getType() == BaseLib::Rpc::BinaryRpc::Type::response) {
             auto response = rpcDecoder.decodeResponse(rpc.getData(), 0);
